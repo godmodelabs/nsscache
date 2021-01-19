@@ -768,6 +768,10 @@ class PasswdUpdateGetter(UpdateGetter):
             if self.conf.get('use_rid'):
                 self.attrs.append('sambaSID')
                 self.essential_fields.append('sambaSID')
+        if 'uidnumberattr' in self.conf:
+            self.attrs.append(self.conf['uidnumberattr'])
+        if 'gidnumberattr' in self.conf:
+            self.attrs.append(self.conf['gidnumberattr'])
         self.log = logging.getLogger(self.__class__.__name__)
 
     def CreateMap(self):
@@ -794,10 +798,10 @@ class PasswdUpdateGetter(UpdateGetter):
 
         pw.gecos = pw.gecos.replace('\n', '')
 
-        if self.conf.get('ad'):
-            pw.name = obj['sAMAccountName'][0]
-        elif 'uidattr' in self.conf:
+        if 'uidattr' in self.conf:
             pw.name = obj[self.conf['uidattr']][0]
+        elif self.conf.get('ad'):
+            pw.name = obj['sAMAccountName'][0]
         else:
             pw.name = obj['uid'][0]
 
@@ -811,18 +815,32 @@ class PasswdUpdateGetter(UpdateGetter):
         else:
             pw.shell = ''
 
-        if self.conf.get('ad'):
+        if 'uidnumberattr' in self.conf:
+            # make it possible to uverride SID-magic
+            pw.uid = int(obj[self.conf['uidnumberattr']][0])
+        elif self.conf.get('ad'):
             # use the user's RID for uid and gid to have
             # the correspondant group with the same name
             pw.uid = int(sidToStr(obj['objectSid'][0]).split('-')[-1])
-            pw.gid = int(sidToStr(obj['objectSid'][0]).split('-')[-1])
         elif self.conf.get('use_rid'):
             # use the user's RID for uid and gid to have
             # the correspondant group with the same name
             pw.uid = int(sidToStr(obj['sambaSID'][0]).split('-')[-1])
-            pw.gid = int(sidToStr(obj['sambaSID'][0]).split('-')[-1])
         else:
             pw.uid = int(obj['uidNumber'][0])
+
+        if 'gidnumberattr' in self.conf:
+            # make it possible to uverride SID-magic
+            pw.gid = int(obj[self.conf['gidnumberattr']][0])
+        elif self.conf.get('ad'):
+            # use the user's RID for uid and gid to have
+            # the correspondant group with the same name
+            pw.gid = int(sidToStr(obj['objectSid'][0]).split('-')[-1])
+        elif self.conf.get('use_rid'):
+            # use the user's RID for uid and gid to have
+            # the correspondant group with the same name
+            pw.gid = int(sidToStr(obj['sambaSID'][0]).split('-')[-1])
+        else:
             pw.gid = int(obj['gidNumber'][0])
 
         if 'offset' in self.conf:
@@ -869,6 +887,8 @@ class GroupUpdateGetter(UpdateGetter):
             if conf.get('use_rid'):
                 self.attrs.append('sambaSID')
                 self.essential_fields.append('sambaSID')
+        if 'gidnumberattr' in self.conf:
+            self.attrs.append(self.conf['gidnumberattr'])
 
         self.log = logging.getLogger(__name__)
 
@@ -916,7 +936,9 @@ class GroupUpdateGetter(UpdateGetter):
             members.extend(obj['uniqueMember'])
         members.sort()
 
-        if self.conf.get('ad'):
+        if 'gidnumberattr' in self.conf:
+            pw.gid = int(obj[self.conf['gidnumberattr']][0])
+        elif self.conf.get('ad'):
             gr.gid = int(sidToStr(obj['objectSid'][0]).split('-')[-1])
         elif self.conf.get('use_rid'):
             gr.gid = int(sidToStr(obj['sambaSID'][0]).split('-')[-1])
